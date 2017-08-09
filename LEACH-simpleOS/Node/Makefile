@@ -1,4 +1,4 @@
-PROJECT=serial_output
+PROJECT=leach
 
 CC=avr-gcc
 COPY=avr-objcopy

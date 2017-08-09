@@ -16,7 +16,7 @@ typedef struct TDMASchedule {
 	uint16_t src_id;
 	uint16_t data;
 	uint16_t tdma_slot; 
-} JoinRequest;
+} TDMASchedule;
 
 typedef struct DataPacket
 {

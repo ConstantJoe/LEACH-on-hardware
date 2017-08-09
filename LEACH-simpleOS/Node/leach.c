@@ -6,7 +6,8 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "app.h"
 #include "simple_os.h"
@@ -19,12 +20,12 @@
 static timer timer1;
 
 //TODO: adjust power of node transceiver based on RSSI
-//		check if RFA1 supports DSSS
+//		RFA1 supports DSSS - find out how it works
 //		memory management
 //		cluster optimum
 //		ack packets
-//		CSMA
 //		general cleanup
+//		also need to do the gateway
 
 #define S_START						0
 #define S_WAIT_FOR_JOIN_REQUESTS 	1
@@ -38,26 +39,30 @@ static timer timer1;
 #define P_TDMASCHEDULE				3
 #define P_DATAPACKET				4
 
+#define NUMNODES 					100
 // Buffer for transmitting radio packets
 unsigned char tx_buffer[RADIO_MAX_LEN];
-bool tx_buffer_inuse=false; // Chack false and set to true before sending a message. Set to false in tx_done
+bool tx_buffer_inuse=false; // Check false and set to true before sending a message. Set to false in tx_done
 
 int state = S_START;
-int id = 0x0001;
+int node_id = 0x0002;
+int gateway_id = 0x0001;
 
 int packet_pize = 6400;
 int ctr_packet_size = 6400;
-int round = 0;
+int round_no = 0;
 int rounds_since_ch = 0;
 
-int num_nodes = 100;
 int num_dead = 0;
 int area_height = 100;
 int area_width = 100;
-uint16_t cluster_members[num_nodes];
+int sink_x = 50;
+int sink_y = 50;
+
+uint16_t cluster_members[NUMNODES];
 int num_of_cluster_members = 0; 
 
-uint16_t data[num_nodes];
+uint16_t data[NUMNODES];
 int data_received_count = 0;
 
 char role = 'N';
@@ -69,11 +74,15 @@ int id_of_max_rssi = 0;
 unsigned char max_rssi = 0;
 int rssi_checked = 0;
 
+unsigned long time_holder = 0;
+
+double k; //optimum number of clusters
+
 double clusterOptimum()
 {
-	//double dBS = sqrt(pow(clusterM->netA.sink.x - clusterM->netA.yard.height, 2) + pow(clusterM->netA.sink.y - clusterM->netA.yard.width, 2));
-	//TODO: cant do it this way - see how its done in the paper
-	int n = num_nodes - num_dead;
+	//TODO: can't assumed number of nodes and location of sink will be known- see how its done in the paper
+	double dBS = sqrt(pow(sink_x - area_width, 2) + pow(sink_y - area_height, 2));
+	int n = NUMNODES - num_dead;
 	double m = sqrt(area_height * area_width);
 
 	float x = e_freespace / e_multipath;
@@ -89,18 +98,16 @@ double clusterOptimum()
 void application_start()
 {
 	// initialise required services
-	radio_init(NODE_ID, false);
-	timer_init(&timer1, TIMER_MILLISECONDS, 10000, 250);
+	radio_init(node_id);
+	timer_init(&timer1, TIMER_MILLISECONDS, 30000, 250); //TODO: time between ticks might change
 }
+
 //
 // Timer tick handler
 //
 void application_timer_tick(timer *t)
 {
-	//this is once every round - need to decide time between rounds
-
-	//generate ClusterOptimum
-	double k = ClusterOptimum();
+	k = ClusterOptimum();
 	//set C(i)
 	// if a node has been a CH in the most recent r%(N/k) rounds, then C(i) = 0. Else C(i) = 1.
 	int c_i;
@@ -111,17 +118,25 @@ void application_timer_tick(timer *t)
 		// send ADV message
 		Advertisement ad;
 		ad.data = 0xffff;
-		ad.src_id = id;
+		ad.src_id = node_id;
 		ad.type = P_ADVERTISEMENT;
 
-		//TODO: this needs to be done in a CSMA format
+		//Basic CSMA:
+		int r;
+		while(!CCA_STATUS){
+			//as long as clear channel assessment says the channel is busy
+			timer_wait_milli(rand()%100); //TODO: this might be too long
+		}
+
 		memcpy(&tx_buffer, &ad, sizeof(Advertisement));
 		radio_send(tx_buffer, sizeof(Advertisement), 0xFF); //broadcast
 
-		state = S_WAIT_FOR_JOIN_REQUESTS; 
+		state = S_WAIT_FOR_JOIN_REQUESTS;
+		time_holder = timer_now_us(); 
 	}
 	else if(role == 'N'){
 		state = S_WAIT_FOR_ADVERTISEMENTS;
+		time_holder = timer_now_us();
 	}
 }
 
@@ -144,13 +159,14 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 			num_of_cluster_members++;
 
 			//if enough received then schedule TDMA and send to cluster members
-			if(/*enough time has passed*/){
+			if(timer_now_us() - time_holder > 5000000){ //TODO: this might be too long
 				//schedule TDMA, send to cluster members
 				//this is v. simple, just giving them an id and nodes wait based on that
-				for(int i=0;i<num_of_cluster_members;i++){
+				int i;
+				for(i=0;i<num_of_cluster_members;i++){
 					TDMASchedule ts;
 					ts.type = P_TDMASCHEDULE;
-					ts.src_id = id;
+					ts.src_id = node_id;
 					ts.data = 0xFFFF;
 					ts.tdma_slot = i;
 
@@ -181,24 +197,28 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 				rssi_checked++;
 			}
 
-			if(rssi_checked == k) //checked all cluster heads
-			{
-				//todo: add a timer expire here
-				
+			if(rssi_checked == k || timer_now_us() - time_holder > 5000000) //checked all cluster heads or 5 seconds has passed
+			{	
 				//reset vars
 				rssi_checked = 0;
 				max_rssi = 0;
 				id_of_max_rssi = 0;
 
-				//send a join-request
+				//send a join-request to the best choice
 				JoinRequest jr;
 				jr.data = 0xffff;
-				jr.src_id = id;
+				jr.src_id = node_id;
 				jr.type = P_JOINREQUEST;
 
-				//TODO: this needs to be done in a CSMA format
+				//Basic CSMA:
+				int r;
+				while(!CCA_STATUS){
+					//as long as clear channel assessment says the channel is busy
+					timer_wait_milli(rand()%100); //TODO: this might be too long
+				}
+
 				memcpy(&tx_buffer, &jr, sizeof(JoinRequest));
-				radio_send(tx_buffer, sizeof(JoinRequest), ad.src_id);
+				radio_send(tx_buffer, sizeof(JoinRequest), id_of_max_rssi);
 
 				state = S_WAIT_FOR_SCHEDULE; 
 			}
@@ -217,7 +237,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 			//send data packet
 			DataPacket dp;
 			dp.data = 0xffff;
-			dp.src_id = id;
+			dp.src_id = node_id;
 			dp.type = P_DATAPACKET;
 
 			memcpy(&tx_buffer, &dp, sizeof(DataPacket));
@@ -242,7 +262,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 				//in reality we aggregate, here data is just dummy
 
 				dp.type = P_DATAPACKET;
-				dp.src_id = id;
+				dp.src_id = node_id;
 				dp.data = 0xffff;
 
 				memcpy(&tx_buffer, &dp, sizeof(DataPacket));
@@ -258,19 +278,11 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 	printf("Rx %d bytes: [%04x][%04x]\n", len, dst, src);
 }
 
-//
-// This function is called whenever a radio message has been transmitted
-// You need to free up the transmit buffer here
-//
 void application_radio_tx_done()
 {
 	tx_buffer_inuse = false;
 }
 
-void application_button_pressed()
-{
-}
+void application_button_pressed(){}
 
-void application_button_released()
-{
-}
+void application_button_released(){}
