@@ -1,1 +1,1 @@
-Cooja working on a simplfied operating system for the atmega128rfa1.
+LEACH working on a simplified operating system for the atmega128rfa1.
