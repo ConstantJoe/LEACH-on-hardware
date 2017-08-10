@@ -60,4 +60,4 @@ TDMASchedule ts;
 DataPacket dp;
 
 
-double clusterOptimum();
+double clusterOptimum(void);

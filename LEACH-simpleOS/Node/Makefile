@@ -6,9 +6,9 @@ UPLOAD=avrdude
 ELFFLAGS=-g -mmcu=atmega128rfa1
 CFLAGS= $(ELFFLAGS) -Os 
 
-DEPS=$(PROJECT).h leds.h button.h Ctk_spi.h sx1272.h radio.h serial.h timer.h hw_timer.h
+DEPS=$(PROJECT).h leds.h button.h radio.h serial.h hw_timer.h simple_os.h message_structs.h
 
-OBJ=leds.o button.o timer.o radio.o hw_timer.o
+OBJ=leds.o button.o radio.o hw_timer.o serial.o simple_os.o
 OBJ+= $(PROJECT).o
 
 upload: $(PROJECT).hex

@@ -3,7 +3,7 @@
 
 #define RADIO_MAX_LEN 128
 
-void radio_init(unsigned short macaddr);
+void radio_init(unsigned short macaddr, unsigned char all);
 void radio_start();
 unsigned char radio_tx_done();
 void radio_send(unsigned char *buffer, unsigned char len, unsigned short dst);
@@ -41,5 +41,7 @@ unsigned char radio_latest_lqi();
 unsigned char radio_rx_all();
 
 unsigned short radio_getid();
+
+void radio_shutdown(); 
 
 #endif /* RADIO_H_ */

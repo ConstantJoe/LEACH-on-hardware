@@ -1,6 +1,6 @@
 #include <stdlib.h>
-//#include "simple_os.h"
-#include "timer.h"
+#include "simple_os.h"
+
 unsigned char id;
 
 void application_start();

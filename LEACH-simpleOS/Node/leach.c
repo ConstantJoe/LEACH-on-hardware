@@ -11,7 +11,7 @@
 
 #include "message_structs.h"
 #include "app.h"
-//#include "simple_os.h"
+#include "simple_os.h"
 #include "button.h"
 #include "leds.h"
 #include "radio.h"
@@ -48,7 +48,7 @@ double clusterOptimum()
 void application_start()
 {
 	// initialise required services
-	radio_init(node_id);
+	radio_init(node_id, 0);
 	timer_init(&timer1, TIMER_MILLISECONDS, 30000, 250); //TODO: time between ticks might be changed
 }
 
@@ -60,7 +60,7 @@ void application_timer_tick(timer *t)
 	round_no++;
 	rounds_since_ch++;
 
-	k = ClusterOptimum();
+	k = clusterOptimum();
 	//set C(i)
 	// if a node has been a CH in the most recent r%(N/k) rounds, then C(i) = 0. Else C(i) = 1.
 	double c_i;
@@ -95,7 +95,7 @@ void application_timer_tick(timer *t)
 		int r;
 		while(!CCA_STATUS){
 			//as long as clear channel assessment says the channel is busy
-			timer_wait_milli(rand()%100); //TODO: this might be too long
+			hw_timer_wait_milli(rand()%100); //TODO: this might be too long
 		}
 
 		memcpy(&tx_buffer, &ad, sizeof(Advertisement));
@@ -104,11 +104,11 @@ void application_timer_tick(timer *t)
 		state = S_WAIT_FOR_JOIN_REQUESTS;
 		rounds_since_ch = 0;
 
-		time_holder = timer_now_us(); 
+		time_holder = hw_timer_now_us(); 
 	}
 	else if(role == 'N'){
 		state = S_WAIT_FOR_ADVERTISEMENTS;
-		time_holder = timer_now_us();
+		time_holder = hw_timer_now_us();
 	}
 }
 
@@ -130,7 +130,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 			num_of_cluster_members++;
 
 			//if enough received then schedule TDMA and send to cluster members
-			if(timer_now_us() - time_holder > 5000000){ //TODO: this might be too long
+			if(hw_timer_now_us() - time_holder > 5000000){ //TODO: this might be too long
 				//schedule TDMA, send to cluster members
 				//this is v. simple, just giving them an id and nodes wait based on that
 				int i;
@@ -166,7 +166,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 				rssi_checked++;
 			}
 
-			if(rssi_checked == k || timer_now_us() - time_holder > 5000000) //checked all cluster heads or 5 seconds has passed
+			if(rssi_checked == k || hw_timer_now_us() - time_holder > 5000000) //checked all cluster heads or 5 seconds has passed
 			{	
 				//reset vars
 				rssi_checked = 0;
@@ -182,7 +182,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 				int r;
 				while(!CCA_STATUS){
 					//as long as clear channel assessment says the channel is busy
-					timer_wait_milli(rand()%100); //TODO: this might be too long
+					hw_timer_wait_milli(rand()%100); //TODO: this might be too long
 				}
 
 				memcpy(&tx_buffer, &jr, sizeof(JoinRequest));
@@ -199,7 +199,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		ts.tdma_slot = msgdata[5];
 
 		if(ts.type == P_TDMASCHEDULE){
-			timer_wait_milli(100*ts.tdma_slot); //TODO: this is probably way too long
+			hw_timer_wait_milli(100*ts.tdma_slot); //TODO: this is probably way too long
 			
 			//send data packet
 			dp.data = 0xffff;

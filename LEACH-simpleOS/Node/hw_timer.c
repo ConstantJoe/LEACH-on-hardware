@@ -9,6 +9,13 @@
 #include <stdbool.h>
 #include <avr/io.h>
 
+// get CPU clock frequency
+
+unsigned long hw_timer_cpuf() {
+   return F_CPU;
+}
+
+
 // initialise timer 1
 
 void hw_timer_init(void)

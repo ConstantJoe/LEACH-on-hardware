@@ -17,7 +17,9 @@ static unsigned short radio_macaddr=0x0000;
 static unsigned char radio_energy=0;
 static unsigned char radio_lqi=0;
 
-void radio_init(unsigned short macaddr)
+static unsigned char radio_deliver_all=0;
+
+void radio_init(unsigned short macaddr, unsigned char all)
 {
    // reset
    TRXPR = 0;
@@ -51,6 +53,9 @@ void radio_init(unsigned short macaddr)
 
    // get the state
    radio_state = TRX_STATUS;
+
+   // record the all flag
+   radio_deliver_all = all;
 }
 
 void radio_start()
@@ -116,7 +121,7 @@ void radio_send(unsigned char *buffer, unsigned char len, unsigned short dst)
    // copy the data
    for (i=0; i<len; i++)
       *bp++ = *buffer++;
-
+
    // write two zeros that will be overwritten by the FCS
    *bp++ = 0x00;
    *bp++ = 0x00;
@@ -268,4 +273,14 @@ void radio_shutdown()
 
   // go to sleep
   TRXPR |= (1<<SLPTR);
+}
+
+unsigned char radio_rx_all()
+{
+   return radio_deliver_all;
+}
+
+unsigned short radio_getid()
+{
+   return radio_macaddr;
 }
