@@ -4,14 +4,14 @@
 // Use timer 1, running at full clock speed
 //
 
-#include "timer.h"
+#include "hw_timer.h"
 
 #include <stdbool.h>
 #include <avr/io.h>
 
 // initialise timer 1
 
-void timer_init(void)
+void hw_timer_init(void)
 {
 
    // set timer counter 1 to be free running at the clock frequency
@@ -20,17 +20,18 @@ void timer_init(void)
    TCCR1B = 0x01;
    TCCR1C = 0x00;
    TCNT1 = 0x0000;
+ 
    TIMSK1  = 0x00; // no interrupts
 
 }
 
-void timer_start(unsigned short value)
+void hw_timer_start(unsigned short value)
 {
-   timer_init();
+   hw_timer_init();
    TCNT1 = value;
 }
 
-bool timer_overflow()
+bool hw_timer_overflow()
 {
    bool set=((TIFR1 & (1<<TOV1))!=0);
    if (set)
@@ -41,7 +42,7 @@ bool timer_overflow()
 //
 // return current time in clock cycles
 //
-unsigned short timer_now()
+unsigned short hw_timer_now()
 {
    return TCNT1;
 }
@@ -49,9 +50,14 @@ unsigned short timer_now()
 //
 // return current time in us
 //
-unsigned long timer_now_us()
+unsigned long basetime=0;
+unsigned long hw_timer_now_us()
 {
-   unsigned short temp = TCNT1 / (F_CPU/1000000);
+   unsigned long temp = TCNT1 / (F_CPU/1000000);
+   if (hw_timer_overflow()) {
+      basetime += 65536 / (F_CPU/1000000);
+   }
+   temp += basetime;
    return temp;
 }
 
@@ -61,30 +67,34 @@ unsigned long timer_now_us()
 // Therefore may have to wait for the hardware timer multiple times
 //
 
-void timer_wait_micro(unsigned short delay)
+void hw_timer_wait_micro(unsigned short delay)
 {
    unsigned long ticks;
 
    ticks = delay * (F_CPU/1000000);
   
    while (ticks>65535) {
-      timer_start(0);
-	  ticks = ticks - 65535;
-      while (!timer_overflow());
+      hw_timer_start(0);
+	  ticks = ticks - 65536;
+      while (!hw_timer_overflow());
    }
 
-   timer_start(65535-(ticks&0xFFFF));
-   while (!timer_overflow());
+   hw_timer_start(65535-(ticks&0xFFFF));
+   while (!hw_timer_overflow());
 }
 
 // Wait in milliseconds
 
-void timer_wait_milli(unsigned short delay)
+void hw_timer_wait_milli(unsigned short delay)
 {
    while (delay>65) {
-      timer_wait_micro(65000);
+      hw_timer_wait_micro(65000);
 	  delay = delay - 65;
   }
 
-   timer_wait_micro(delay);
+   hw_timer_wait_micro(delay);
 }
+
+
+
+

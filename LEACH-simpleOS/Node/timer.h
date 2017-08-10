@@ -11,8 +11,18 @@
 
 #define TIMER_H
 
-//void timer_init(void);
-//void timer_start(unsigned short value);
+typedef struct _os_timer {
+        unsigned char active;
+        unsigned char pending;
+        unsigned char type;
+        unsigned char expired;
+        unsigned short initial;
+        unsigned short period;
+        unsigned short remaining;
+} timer;
+
+void timer_init(void);
+void timer_start(unsigned short value);
 bool timer_overflow();
 unsigned short timer_now();
 unsigned long timer_now_us();
