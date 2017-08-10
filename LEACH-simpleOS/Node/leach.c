@@ -21,11 +21,9 @@ static timer timer1;
 
 //TODO: adjust power of node transceiver based on RSSI
 //		RFA1 supports DSSS - find out how it works
-//		memory management
-//		cluster optimum
+//		cluster optimum - see the version in the paper
 //		ack packets
 //		general cleanup
-//		also need to do the gateway
 
 #define S_START						0
 #define S_WAIT_FOR_JOIN_REQUESTS 	1
@@ -78,6 +76,11 @@ unsigned long time_holder = 0;
 
 double k; //optimum number of clusters
 
+Advertisement ad;
+JoinRequest jr;
+TDMASchedule ts;
+DataPacket dp;
+
 double clusterOptimum()
 {
 	//TODO: can't assumed number of nodes and location of sink will be known- see how its done in the paper
@@ -99,7 +102,7 @@ void application_start()
 {
 	// initialise required services
 	radio_init(node_id);
-	timer_init(&timer1, TIMER_MILLISECONDS, 30000, 250); //TODO: time between ticks might change
+	timer_init(&timer1, TIMER_MILLISECONDS, 30000, 250); //TODO: time between ticks might be changed
 }
 
 //
@@ -107,16 +110,33 @@ void application_start()
 //
 void application_timer_tick(timer *t)
 {
+	round_no++;
+	rounds_since_ch++;
+
 	k = ClusterOptimum();
 	//set C(i)
 	// if a node has been a CH in the most recent r%(N/k) rounds, then C(i) = 0. Else C(i) = 1.
-	int c_i;
-	//decide if this node is a CH
+	double c_i;
+	int r;
 
+	if(rounds_since_ch > N/K){
+		//can be a CH
+		//Probability it is chosen is (k)/(N-k*(r%N/k))
+		c_i = (k)/(NUMNODES-k*(round_no%(NUMNODES/k)));
+		c_i *= 100;
+
+		r = rand()%100;
+
+		if(c_i > r){
+			role == 'C';
+		}
+		else{
+			role == 'N';
+		}
+	}
 
 	if(role == 'C'){
 		// send ADV message
-		Advertisement ad;
 		ad.data = 0xffff;
 		ad.src_id = node_id;
 		ad.type = P_ADVERTISEMENT;
@@ -132,6 +152,8 @@ void application_timer_tick(timer *t)
 		radio_send(tx_buffer, sizeof(Advertisement), 0xFF); //broadcast
 
 		state = S_WAIT_FOR_JOIN_REQUESTS;
+		rounds_since_ch = 0;
+
 		time_holder = timer_now_us(); 
 	}
 	else if(role == 'N'){
@@ -148,7 +170,6 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 {
 	if(role == 'C' && state == S_WAIT_FOR_JOIN_REQUESTS)
 	{
-		JoinRequest jr;
 		jr.type = msgdata[0];
 		jr.src_id = msgdata[1];
 		jr.data = msgdata[3];
@@ -164,7 +185,6 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 				//this is v. simple, just giving them an id and nodes wait based on that
 				int i;
 				for(i=0;i<num_of_cluster_members;i++){
-					TDMASchedule ts;
 					ts.type = P_TDMASCHEDULE;
 					ts.src_id = node_id;
 					ts.data = 0xFFFF;
@@ -182,7 +202,6 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		
 		
 		//		if k annoucements have been found or enough time has passed, send Join-Request	
-		Advertisement ad;
 		ad.type = msgdata[0];
 		ad.src_id = msgdata[1];
 		ad.data = msgdata[3];
@@ -205,7 +224,6 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 				id_of_max_rssi = 0;
 
 				//send a join-request to the best choice
-				JoinRequest jr;
 				jr.data = 0xffff;
 				jr.src_id = node_id;
 				jr.type = P_JOINREQUEST;
@@ -225,7 +243,6 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		}
 	}
 	else if(role == 'N' && state == S_WAIT_FOR_SCHEDULE){
-		TDMASchedule ts;
 		ts.type = msgdata[0];
 		ts.src_id = msgdata[1];
 		ts.data = msgdata[3];
@@ -235,13 +252,14 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 			timer_wait_milli(100*ts.tdma_slot); //TODO: this is probably way too long
 			
 			//send data packet
-			DataPacket dp;
 			dp.data = 0xffff;
 			dp.src_id = node_id;
 			dp.type = P_DATAPACKET;
 
 			memcpy(&tx_buffer, &dp, sizeof(DataPacket));
 			radio_send(tx_buffer, sizeof(DataPacket), ts.src_id);
+
+			state = S_START;
 		}	
 	}
 	else if(role == 'C' && state == S_STEADY_STATE){
@@ -249,7 +267,6 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		//		record all data
 		//		if data received from all members
 		//			aggregate, send to gateway
-		DataPacket dp;
 		dp.type = msgdata[0];
 		dp.src_id = msgdata[1];
 		dp.data = msgdata[3];
@@ -270,6 +287,8 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 
 				data_received_count = 0;
 				num_of_cluster_members = 0;
+				role = 'N';
+				state = S_START;
 			}
 		}	
 	}
