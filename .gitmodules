@@ -1,0 +1,3 @@
+[submodule "LEACH-Contiki/contiki"]
+	path = LEACH-Contiki/contiki
+	url = https://github.com/ConstantJoe/contiki
