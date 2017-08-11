@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
 
 #include "watchdog.h"
 #include "dev/leds.h"
@@ -21,6 +22,11 @@
 #define S_STEADY_STATE              2
 #define S_WAIT_FOR_ADVERTISEMENTS   3
 #define S_WAIT_FOR_SCHEDULE         4
+
+#define P_ADVERTISEMENT             1
+#define P_JOINREQUEST               2
+#define P_TDMASCHEDULE              3
+#define P_DATAPACKET                4
 
 #define NUMNODES                    100
 
@@ -47,10 +53,10 @@ unsigned long time_holder = 0;
 
 int rssi_checked = 0;
 uint8_t max_rssi = 0;
-linkaddr_t id_of_max_rssi = 0;
+linkaddr_t id_of_max_rssi = {0,0};
 char role = 'N';
 
-node_addr cluster_members[NUMNODES];
+linkaddr_t cluster_members[NUMNODES];
 int num_of_cluster_members = 0; 
 
 uint16_t data[NUMNODES];
@@ -61,6 +67,12 @@ int area_height = 100;
 int area_width = 100;
 int sink_x = 50;
 int sink_y = 50;
+double e_freespace = 10*0.000000000001;
+double e_multipath = 0.0013*0.000000000001;
+
+int round_no = 0;
+int rounds_since_ch = 0;
+
 
 linkaddr_t node_addr = {0,1};
 linkaddr_t gateway_addr = {0,0};
@@ -74,6 +86,9 @@ DataPacket dp;
 PROCESS(timer_process, "Timer process");
 
 AUTOSTART_PROCESSES(&timer_process);
+
+static struct unicast_conn uc;
+/*---------------------------------------------------------------------------*/
 
 static void
 broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
@@ -130,6 +145,10 @@ static const struct broadcast_callbacks broadcast_call = {broadcast_recv};
 static struct broadcast_conn broadcast;
 
 /*---------------------------------------------------------------------------*/
+
+
+
+
 static void
 recv_uc(struct unicast_conn *c, const linkaddr_t *from)
 {
@@ -241,8 +260,7 @@ sent_uc(struct unicast_conn *c, int status, int num_tx)
 }
 /*---------------------------------------------------------------------------*/
 static const struct unicast_callbacks unicast_callbacks = {recv_uc, sent_uc};
-static struct unicast_conn uc;
-/*---------------------------------------------------------------------------*/
+
 
 
 
@@ -287,7 +305,7 @@ PROCESS_THREAD(timer_process, ev, data)
       rounds_since_ch++;
 
       //decide whether this is a cluster head or not
-      k = ClusterOptimum();
+      k = clusterOptimum();
 
       double c_i;
       int r;
@@ -304,10 +322,10 @@ PROCESS_THREAD(timer_process, ev, data)
         r = rand()%100;
 
         if(c_i > r){
-          role == 'C';
+          role = 'C';
         }
         else{
-          role == 'N';
+          role = 'N';
         }
       }
 

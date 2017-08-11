@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = SerialRelay
+CONTIKI_PROJECT = leach-contiki
 all: $(CONTIKI_PROJECT)
 
 CONTIKI_WITH_RIME = 1
