@@ -1,9 +1,0 @@
-TODO:
-
-move libs into seperate folder.
-
-modify Makefile to generate .o, .elf, and .hex in a separate folder.
-
-move example programs into a separate folder.
-
-include .c files for all libs, instead of using libOS.a file
