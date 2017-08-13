@@ -8,11 +8,13 @@
 #include <assert.h>
 #include <math.h>
 
+#include "contiki.h"
 #include "watchdog.h"
 #include "dev/leds.h"
 #include "dev/rs232.h"
 //#include "serial-line-dual.h"
 #include "dev/button-sensor.h"
+//#include "net/rime/rime.h"
 #include "net/rime.h"
 #include "message_structs.h"
 
@@ -57,10 +59,10 @@ int rssi_checked = 0;
 
 //uint8_t max_rssi = 0;
 int max_rssi = 0;
-linkaddr_t id_of_max_rssi;
+rimeaddr_t id_of_max_rssi;
 char role = 'N';
 
-linkaddr_t cluster_members[NUMNODES];
+rimeaddr_t cluster_members[NUMNODES];
 int num_of_cluster_members = 0; 
 
 uint16_t data[NUMNODES];
@@ -78,8 +80,8 @@ int round_no = 0;
 int rounds_since_ch = 0;
 
 
-linkaddr_t node_addr; 
-linkaddr_t gateway_addr; 
+rimeaddr_t node_addr; 
+rimeaddr_t gateway_addr; 
 
 Advertisement ad;
 JoinRequest jr;
@@ -95,7 +97,7 @@ static struct unicast_conn uc;
 /*---------------------------------------------------------------------------*/
 
 static void
-broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
+broadcast_recv(struct broadcast_conn *c, const rimeaddr_t *from)
 {
   packetbuf_copyto(&msgdata);
   //rs232_print(RS232_PORT_0, "Message received.\r\n");         //for rfa1
@@ -138,7 +140,7 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
         // Atmel radios in Contiki do a CCA check by default - so all transmissions are CSMA-like?
 
         packetbuf_copyfrom(&jr, sizeof(JoinRequest));
-        if(!linkaddr_cmp(&id_of_max_rssi, &linkaddr_node_addr)) {
+        if(!rimeaddr_cmp(&id_of_max_rssi, &rimeaddr_node_addr)) {
             unicast_send(&uc, &id_of_max_rssi);
         }
         
@@ -165,7 +167,7 @@ static struct broadcast_conn broadcast;
 
 
 static void
-recv_uc(struct unicast_conn *c, const linkaddr_t *from)
+recv_uc(struct unicast_conn *c, const rimeaddr_t *from)
 {
   packetbuf_copyto(&msgdata);
   //printf("unicast message received from %d.%d\n",
@@ -195,7 +197,7 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
           ts.tdma_slot = i;             
 
           packetbuf_copyfrom(&ts, sizeof(TDMASchedule));
-          if(!linkaddr_cmp(&cluster_members[i], &linkaddr_node_addr)) {
+          if(!rimeaddr_cmp(&cluster_members[i], &rimeaddr_node_addr)) {
               unicast_send(&uc, &cluster_members[i]);
           }
         }
@@ -219,12 +221,12 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
       dp.src_id = node_addr;  
       dp.type = P_DATAPACKET;
 
-      //linkaddr_t src_addr; = {msgdata[1], msgdata[2]};
+      //rimeaddr_t src_addr; = {msgdata[1], msgdata[2]};
       //id_of_max_rssi.u8[0] = from->u8[0];
       //id_of_max_rssi.u8[1] = from->u8[1];
 
       packetbuf_copyfrom(&dp, sizeof(DataPacket));
-      if(!linkaddr_cmp(from, &linkaddr_node_addr)) {
+      if(!rimeaddr_cmp(from, &rimeaddr_node_addr)) {
           unicast_send(&uc, from);
       }
 
@@ -252,7 +254,7 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
         dp.data = 0xffff;       
 
         packetbuf_copyfrom(&dp, sizeof(DataPacket));
-        if(!linkaddr_cmp(&gateway_addr, &linkaddr_node_addr)) {
+        if(!rimeaddr_cmp(&gateway_addr, &rimeaddr_node_addr)) {
           unicast_send(&uc, &gateway_addr);
         }
 
@@ -272,7 +274,7 @@ sent_uc(struct unicast_conn *c, int status, int num_tx)
 
   //TODO: have a think about this - it might be better to move everything after the sends from above to here. 
 
-  /*const linkaddr_t *dest = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
+  /*const rimeaddr_t *dest = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
   if(linkaddr_cmp(dest, &linkaddr_null)) {
     return;
   }
@@ -329,8 +331,10 @@ PROCESS_THREAD(timer_process, ev, data)
 
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
 
+    printf("Timer expired\r\n");
       //update round info
     if(state == S_START){
+      printf("New round\r\n");
       round_no++;
       rounds_since_ch++;
 
@@ -340,7 +344,7 @@ PROCESS_THREAD(timer_process, ev, data)
       double c_i;
       int r;
 
-      if(rounds_since_ch > NUMNODES/k){
+      if(rounds_since_ch > NUMNODES/k){ //this doesn't work for the very start. 
           //can be a CH
           //Probability it is chosen is (k)/(N-k*(r%N/k))
 
@@ -350,6 +354,8 @@ PROCESS_THREAD(timer_process, ev, data)
         c_i *= 100;
 
         r = rand()%100;
+
+        printf("C_i: %f\r\n", c_i);
 
         if(c_i > r){
           role = 'C';
@@ -382,6 +388,10 @@ PROCESS_THREAD(timer_process, ev, data)
         }  
 
         etimer_reset(&et);
+      }
+      else{
+        printf("Timer fired but not in start state.\r\n");
+        printf("State: %d\r\n", state);
       }
     }
     PROCESS_END();

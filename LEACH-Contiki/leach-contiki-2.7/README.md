@@ -1,0 +1,1 @@
+A version of the program that is compatible with Contiki 2.7, which is the version of Contiki whose Cooja is the most stable. Move this folder to inside the Contiki installation folder (e.g. in examples) and run it inside Cooja from there.
