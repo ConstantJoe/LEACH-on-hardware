@@ -90,6 +90,9 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		dp.type = msgdata[0];
 		dp.src_id = msgdata[1];
 		dp.data = msgdata[3];
+
+		//TODO: reformat dp to include node data.
+		//TODO: save that data here
 		//acks will have to be included in this as well. 
 		printf("Rx %d bytes: [%04x][%04x]\n", len, dst, src);
 
