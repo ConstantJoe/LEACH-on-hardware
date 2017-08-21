@@ -10,6 +10,7 @@
 #define P_JOINREQUEST				2
 #define P_TDMASCHEDULE				3
 #define P_DATAPACKET				4
+#define P_DATAPACKETWITHNODEINFO	5
 
 #define NUMNODES 					100
 
@@ -65,6 +66,18 @@ JoinRequest jr;
 TDMASchedule ts;
 DataPacket dp;
 FormationPacket fp;
+DataPacketWithNodeInfo dpn;
+EnergyPacket ep;
 
+
+int bytesOfData = 100;
+
+int firstSend = 1;
+
+uint16_t locX = 10; //just filler for now
+uint16_t locY = 10;
+uint16_t energy = 1000;
+
+int dataFilled = 0;
 
 double clusterOptimum(void);

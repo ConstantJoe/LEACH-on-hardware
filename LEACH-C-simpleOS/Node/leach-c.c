@@ -120,17 +120,43 @@ void application_timer_tick(timer *t)
 		{
 			//if its not the first round we can assume that the node has a cluster assigned already (so no advertisements needed)
 			// cluster heads wake up, regular nodes send to their assigned CH according to their TDMA slot.
-			// TODO: right here nodes send data AND their location data, energy level in one packet to the gateway. 
+			// In the first message, the node includes location and energy level information, and fills up the rest with data
+			// Beyond that, just data is sent until bytesOfData amount of data has been transmitted 
 			if(role == 'N'){
-				hw_timer_wait_milli(100*tdma_slot);
-				dp.data = 0xffff;
-				dp.src_id = node_id;
-				dp.type = P_DATAPACKET;
+				if(firstSend){
+					hw_timer_wait_milli(100*tdma_slot);
+					dpn.type = P_DATAPACKETWITHNODEINFO;
+					dpn.data = 0xffff;
+					dpn.src_id = node_id;
+					dpn.locX = locX;
+					dpn.locY = locY;
+					dpn.energy = energy;
 
-				memcpy(&tx_buffer, &dp, sizeof(DataPacket));
-				radio_send(tx_buffer, sizeof(DataPacket), ch_id);
+					memcpy(&tx_buffer, &dpn, sizeof(DataPacketWithNodeInfo));
+					radio_send(tx_buffer, sizeof(DataPacketWithNodeInfo), ch_id);
 
-				state = S_WAIT_FOR_FORMATION;
+					//TODO: acks?
+
+					dataFilled += 118; //assuming 127 bytes per packet, minus the space taken up by the above.
+
+					if(dataFilled > bytesOfData){
+						state = S_WAIT_FOR_FORMATION;	
+					}
+					else{
+						while(dataFilled < bytesOfData){
+							hw_timer_wait_milli(100*tdma_slot);
+
+							dp.type = P_DATAPACKET;
+							dp.src_id = node_id;
+							dp.data = 0xffff;
+							
+							memcpy(&tx_buffer, &dp, sizeof(DataPacket));
+							radio_send(tx_buffer, sizeof(DataPacket), ch_id);
+
+							dataFilled += 122;							
+						}
+					}
+				}
 			}
 			else if(role == 'C'){
 				state = S_STEADY_STATE;
@@ -226,18 +252,41 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		ts.tdma_slot = msgdata[5];
 
 		if(ts.type == P_TDMASCHEDULE){
-			hw_timer_wait_milli(100*ts.tdma_slot); //TODO: this is probably way too long
-			
-			// TODO: right here nodes send data AND their location data, energy level in one packet to the gateway. 
-			//send data packet
-			dp.data = 0xffff;
-			dp.src_id = node_id;
-			dp.type = P_DATAPACKET;
+			if(firstSend){
+					hw_timer_wait_milli(100*tdma_slot);
+					dpn.type = P_DATAPACKETWITHNODEINFO;
+					dpn.data = 0xffff;
+					dpn.src_id = node_id;
+					dpn.locX = locX;
+					dpn.locY = locY;
+					dpn.energy = energy;
 
-			memcpy(&tx_buffer, &dp, sizeof(DataPacket));
-			radio_send(tx_buffer, sizeof(DataPacket), ts.src_id);
+					memcpy(&tx_buffer, &dpn, sizeof(DataPacketWithNodeInfo));
+					radio_send(tx_buffer, sizeof(DataPacketWithNodeInfo), ch_id);
 
-			state = S_WAIT_FOR_FORMATION;
+					//TODO: acks?
+
+					dataFilled += 118; //assuming 127 bytes per packet, minus the space taken up by the above.
+
+					if(dataFilled > bytesOfData){
+						state = S_WAIT_FOR_FORMATION;	
+					}
+					else{
+						while(dataFilled < bytesOfData){
+							hw_timer_wait_milli(100*tdma_slot);
+
+							dp.type = P_DATAPACKET;
+							dp.src_id = node_id;
+							dp.data = 0xffff;
+							
+							memcpy(&tx_buffer, &dp, sizeof(DataPacket));
+							radio_send(tx_buffer, sizeof(DataPacket), ch_id);
+
+							dataFilled += 122;							
+						}
+						dataFilled = 0;
+					}
+				}
 		}	
 	}
 	else if(role == 'C' && state == S_STEADY_STATE){
@@ -245,43 +294,83 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		//		record all data
 		//		if data received from all members
 		//			aggregate, send to gateway
-		dp.type = msgdata[0];
-		dp.src_id = msgdata[1];
-		dp.data = msgdata[3];
+		dp.type = msgdata[0];;
 		
 		if(dp.type == P_DATAPACKET){
-			data[data_received_count] = dp.data;
-			data_received_count++;
+			dp.src_id = msgdata[1];
+			dp.data = msgdata[3];
+			dp.finished = msgdata[5];
 
-			if(data_received_count == num_of_cluster_members){
-				//in reality we aggregate, here data is just dummy
+			data[dp.src_id] = dp.data;
+			
+			if(dp.finished){
+				data_received_count++;	
+			}
+			
+		} else if(dp.type == P_DATAPACKETWITHNODEINFO){
+			dpn.src_id = msgdata[1];
+			dpn.energy = msgdata[3];
+			dpn.locX = msgdata[5];
+			dpn.locY = msgdata[7];
+			dpn.data = msgdata[9];
+			dpn.finished = msgdata[11];
 
+			data[dp.src_id] = dp.data; // its just dummy data
 
-				// need to do some quick maths here - 
-				//	- is it better to have no aggregation, and the data and node data gets sent together to the gateway?
-				//	- it would depend on how much data there is I guess.
-				//	-	maximum payload depends on upper layers, but at max max its 127 bytes.
-				//	-   TODO: check how much is avaiable in RIME. 
-				//	-	how much data is required about each node? Just 3 bytes?
+			ep.type = P_ENERGYPACKET;
+			ep.node_ids[ep.numNodes] = dpn.src_id;
+			ep.energies[ep.numNodes] = dpn.energy;
+			ep.locXs[ep.numNodes] = dpn.locX;
+			ep.locYs[ep.numNodes] = dpn.locY;
+			ep.numNodes++;
+
+			if(dp.finished){
+				data_received_count++;	
+			}
+		}	
+
+		if(data_received_count == num_of_cluster_members){
+			//in reality we aggregate, here data is just dummy
+
+			//send on node data first, then data.
+			//6 bytes per node in the cluster
+
+			memcpy(&tx_buffer, &ep, sizeof(EnergyPacket));
+			radio_send(tx_buffer, sizeof(EnergyPacket), gateway_id);
+				
+			state = S_WAIT_FOR_ENERGY_ACK;
+		}
+
+	}
+	else if(role == 'C' && state == S_WAIT_FOR_ENERGY_ACK){
+		ea.type = msgdata[0];
+		ea.tdma_slot = msgdata[1];
+
+		if(ea.type == P_ENERGYACK){
+			//send data
+			while(dataFilled < bytesOfData){
+				hw_timer_wait_milli(100*ea.tdma_slot);
+
 				dp.type = P_DATAPACKET;
 				dp.src_id = node_id;
 				dp.data = 0xffff;
-
+							
 				memcpy(&tx_buffer, &dp, sizeof(DataPacket));
 				radio_send(tx_buffer, sizeof(DataPacket), gateway_id);
-
-				
-				state = S_WAIT_FOR_FORMATION;
+				//TODO: acks?
+				dataFilled += 122;							
 			}
-		}	
+			dataFilled = 0;	
+			state = S_WAIT_FOR_FORMATION;
+		}
 	}
 	else if(role == 'C' && state == S_WAIT_FOR_FORMATION){
 		//read in formation data, send on to node(s?)
-		fp.type = msgdata[0];
-		fp.src_id = msgdata[1];
-		fp.nodes = msgdata[3];
-		fp.data = msgdata[5];
-		fp.moreToCome = msgdata[7];
+		//fp.type = msgdata[0];
+		//fp.src_id = msgdata[1];
+		//fp.nodes = msgdata[3];
+		//fp.data = msgdata[5];
+		//fp.moreToCome = msgdata[7];
 		//assuming just one for now.
 
 		//read data about self 

@@ -212,7 +212,7 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
     ts.tdma_slot = msgdata[5];    
 
     if(ts.type == P_TDMASCHEDULE){
-      clock_wait(100*ts.tdma_slot); //TODO:  the input is in ticks, not sure how long a tick is.
+      clock_wait(100*ts.tdma_slot); //TODO:  the input is in ticks, need to find out how long a tick is.
 
       //send data packet
       dp.data = 0xffff;      
