@@ -366,40 +366,49 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 	}
 	else if(role == 'C' && state == S_WAIT_FOR_FORMATION){
 		//read in formation data, send on to node(s?)
-		//fp.type = msgdata[0];
-		//fp.src_id = msgdata[1];
-		//fp.nodes = msgdata[3];
-		//fp.data = msgdata[5];
-		//fp.moreToCome = msgdata[7];
-		//assuming just one for now.
-
-		//read data about self 
+		fp.type = msgdata[0];
+		fp.numNodes = msgdata[1];
+		fp.assignedCHs = msgdata[3];
 
 		//forward to all nodes in cluster
 		int i;
 		for(i=0; i<num_of_cluster_members;i++){
-			//TODO: TDMA??
 			memcpy(&tx_buffer, &fp, sizeof(FormationPacket));
 			radio_send(tx_buffer, sizeof(FormationPacket), cluster_members[i]);
 		}
 
-		//reset vars
+		//read data about self 
+		if(fp.assignedCHS[node_id] == node_id){
+			role = 'C';
+			//TODO: grab all cluster members
+		}
+		else {
+			role = 'N';
+			clusterhead = fp.assignedCHS[node_id];
+		}
+
+		//TODO: reset all vars
 		data_received_count = 0;
 		num_of_cluster_members = 0;
 		
-		//TODO: set self to what was given in the fp packet 
-		role = 'N';
 		state = S_START;
 	}
 	else if(role == 'N' && state == S_WAIT_FOR_FORMATION){
 		fp.type = msgdata[0];
-		fp.src_id = msgdata[1];
-		fp.nodes = msgdata[3];
-		fp.data = msgdata[5];
-		fp.moreToCome = msgdata[7];
+		fp.numNodes = msgdata[1];
+		fp.assignedCHs = msgdata[3];
 
-		//TODO: set self to what was given in the fp packet
-		role = 'N';
+		//read data about self 
+		if(fp.assignedCHS[node_id] == node_id){
+			role = 'C';
+			//TODO: grab all cluster members
+		}
+		else {
+			role = 'N';
+			clusterhead = fp.assignedCHS[node_id];
+		}
+
+		//TODO: reset all vars
 		state = S_START;
 	}
 
