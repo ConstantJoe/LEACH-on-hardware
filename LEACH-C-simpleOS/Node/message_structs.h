@@ -37,25 +37,25 @@ typedef struct DataPacket
 	uint16_t finished;
 } DataPacket;
 
-typedef EnergyPacket
+typedef struct EnergyPacket
 {
 	uint8_t type;
 	uint16_t numNodes;
-	uint16_t node_ids;
-	uint16_t energies[30];	//TODO: figure this later
-	uint16_t locXs[30];
-	uint16_t locYs[30];
+	uint16_t node_ids[15];
+	uint16_t energies[15];	//128 is max bytes - do all these have to be 16bit?
+	uint16_t locXs[15];
+	uint16_t locYs[15];
 } EnergyPacket;
 
-typedef EnergyAck 
+typedef struct EnergyAck 
 {
 	uint8_t type;
 	uint16_t tdma_slot;
 } EnergyAck;
 
-typedef FormationPacket
+typedef struct FormationPacket
 {
 	uint8_t type;
 	uint16_t numNodes;
-	uint16_t assignedCHs[200];
+	uint16_t assignedCHs[62]; //128 is max bytes - can IDs be 8 bit instead?
 } FormationPacket;

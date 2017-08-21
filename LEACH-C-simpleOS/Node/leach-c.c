@@ -16,7 +16,7 @@
 #include "leds.h"
 #include "radio.h"
 #include "serial.h"
-#include "leach.h"
+#include "leach-c.h"
 
 //TODO: 
 //		finish off the TODOs below
@@ -368,44 +368,62 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		//read in formation data, send on to node(s?)
 		fp.type = msgdata[0];
 		fp.numNodes = msgdata[1];
-		fp.assignedCHs = msgdata[3];
+		int i;
+		for(i=0; i<fp.numNodes;i++){
+			fp.assignedCHs[i] = msgdata[3+(i*2)]; 	
+		}
 
 		//forward to all nodes in cluster
-		int i;
 		for(i=0; i<num_of_cluster_members;i++){
 			memcpy(&tx_buffer, &fp, sizeof(FormationPacket));
 			radio_send(tx_buffer, sizeof(FormationPacket), cluster_members[i]);
 		}
 
 		//read data about self 
-		if(fp.assignedCHS[node_id] == node_id){
+		if(fp.assignedCHs[node_id] == node_id){
 			role = 'C';
-			//TODO: grab all cluster members
+
+			//grab all cluster members
+			num_of_cluster_members = 0;
+			for(i=0; i<fp.numNodes;i++){
+				if(fp.assignedCHs[i] == node_id && i != node_id){
+					cluster_members[num_of_cluster_members] = i;
+					num_of_cluster_members++;
+				}
+			}
 		}
 		else {
 			role = 'N';
-			clusterhead = fp.assignedCHS[node_id];
+			ch_id = fp.assignedCHs[node_id];
 		}
 
 		//TODO: reset all vars
-		data_received_count = 0;
-		num_of_cluster_members = 0;
-		
 		state = S_START;
 	}
 	else if(role == 'N' && state == S_WAIT_FOR_FORMATION){
 		fp.type = msgdata[0];
 		fp.numNodes = msgdata[1];
-		fp.assignedCHs = msgdata[3];
+		int i;
+		for(i=0; i<fp.numNodes;i++){
+			fp.assignedCHs[i] = msgdata[3+(i*2)]; 	
+		}
 
 		//read data about self 
-		if(fp.assignedCHS[node_id] == node_id){
+		if(fp.assignedCHs[node_id] == node_id){
 			role = 'C';
-			//TODO: grab all cluster members
+			
+			//grab all cluster members
+			num_of_cluster_members = 0;
+			for(i=0; i<fp.numNodes;i++){
+				if(fp.assignedCHs[i] == node_id && i != node_id){
+					cluster_members[num_of_cluster_members] = i;
+					num_of_cluster_members++;
+				}
+			}
 		}
 		else {
 			role = 'N';
-			clusterhead = fp.assignedCHS[node_id];
+			ch_id = fp.assignedCHs[node_id];
 		}
 
 		//TODO: reset all vars

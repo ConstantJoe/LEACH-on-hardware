@@ -4,13 +4,15 @@
 #define S_WAIT_FOR_ADVERTISEMENTS	3
 #define S_WAIT_FOR_SCHEDULE			4
 #define S_WAIT_FOR_FORMATION		5
-
+#define S_WAIT_FOR_ENERGY_ACK 		6
 
 #define P_ADVERTISEMENT				1
 #define P_JOINREQUEST				2
 #define P_TDMASCHEDULE				3
 #define P_DATAPACKET				4
 #define P_DATAPACKETWITHNODEINFO	5
+#define P_ENERGYPACKET				6
+#define P_ENERGYACK 				7
 
 #define NUMNODES 					100
 
@@ -68,6 +70,7 @@ DataPacket dp;
 FormationPacket fp;
 DataPacketWithNodeInfo dpn;
 EnergyPacket ep;
+EnergyAck ea;
 
 
 int bytesOfData = 100;
