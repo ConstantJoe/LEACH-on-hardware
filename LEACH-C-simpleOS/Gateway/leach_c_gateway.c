@@ -17,27 +17,13 @@
 #include "serial.h"
 #include "leach_c_gateway.h"
 #include "message_structs.h"
+#include "simulated_annealing.h"
 
 static timer timer1;
 
 #define NUMNODES 					100
 
-/*
-	This is just for the first round, to know how many messages to expect to come in.
-*/
-double clusterOptimum()
-{
-	//TODO: can't assumed number of nodes and location of sink will be known- see how its done in the paper
-	double dBS = sqrt(pow(sink_x - area_width, 2) + pow(sink_y - area_height, 2));
-	int n = NUMNODES - num_dead;
-	double m = sqrt(area_height * area_width);
 
-	float x = e_freespace / e_multipath;
-
-	double kopt = sqrt(n) / sqrt(2*M_PI) * sqrt(x) * m / pow(dBS,2);
-	kopt = round(kopt);
-	return kopt;
-}
 
 
 //
@@ -48,7 +34,7 @@ void application_start()
 	// initialise required services
 	radio_init(node_id);
 
-	k = clusterOptimum();
+	k = cluster_optimum();
 }
 
 //
@@ -69,16 +55,16 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		ep.numNodes = msgdata[1];
 	
 		int i;
-		for(i=0; i<ep.numNodes;i++){
+		for(i=0; i<ep.num_nodes;i++){
 			//NOTE: this works based on the max number of nodes per cluster being 15, and using 16bit numbers for energy, locX, locY
 			//		might change.
 			int n_id = msgdata[3+i*2]; //get node id
 			energies[n_id] = msgdata[33+i*2];
-			locXs[n_id] = msgdata[63+i*2];
-			locYs[n_id] = msgdata[93+i*2];
+			loc_xs[n_id] = msgdata[63+i*2];
+			loc_ys[n_id] = msgdata[93+i*2];
 		}
 
-		counted += ep.numNodes;
+		counted += ep.num_nodes;
 
 		//send an ack back
 		ea.type = P_ENERGYACK;
@@ -100,6 +86,7 @@ void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, u
 		if(counted >= NUMNODES){
 			//data from all has arrived, we can now perform simulated annealing.
 			//put results into FormationPacket fp
+			simulatedAnnealing(k);
 		}
 
 		memcpy(&tx_buffer, &fp, sizeof(FormationPacket));

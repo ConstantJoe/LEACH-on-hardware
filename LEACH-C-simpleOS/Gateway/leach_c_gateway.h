@@ -91,6 +91,4 @@ int tdma_v = 0;
 
 int firstRound = 1;
 
-uint16_t energies[NUMNODES];
-uint16_t locXs[NUMNODES];
-uint16_t locYs[NUMNODES];
+

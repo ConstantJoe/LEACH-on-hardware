@@ -40,11 +40,11 @@ typedef struct DataPacket
 typedef struct EnergyPacket
 {
 	uint8_t type;
-	uint16_t numNodes;
+	uint16_t num_nodes;
 	uint16_t node_ids[15];
 	uint16_t energies[15];	//128 is max bytes - do all these have to be 16bit?
-	uint16_t locXs[15];
-	uint16_t locYs[15];
+	uint16_t loc_xs[15];
+	uint16_t loc_ys[15];
 } EnergyPacket;
 
 typedef struct EnergyAck 
