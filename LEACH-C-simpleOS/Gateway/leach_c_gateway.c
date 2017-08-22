@@ -15,32 +15,13 @@
 #include "leds.h"
 #include "radio.h"
 #include "serial.h"
+#include "leach_c_gateway.h"
 #include "message_structs.h"
 
 static timer timer1;
 
 #define NUMNODES 					100
 
-//TODO: ack packets
-
-// Buffer for transmitting radio packets
-unsigned char tx_buffer[RADIO_MAX_LEN];
-bool tx_buffer_inuse=false; // Check false and set to true before sending a message. Set to false in tx_done
-
-int node_id = 0x0001;
-
-int start = 1;
-
-DataPacket dp;
-
-int num_dead = 0;
-int area_height = 100;
-int area_width = 100;
-int sink_x = 50;
-int sink_y = 50;
-
-int k;
-int counted = 0;
 /*
 	This is just for the first round, to know how many messages to expect to come in.
 */
@@ -82,30 +63,48 @@ void application_timer_tick(timer *t){}
 void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, unsigned char *msgdata)
 {
 	//is this it? Seems too easy
-	counted++;
+	ep.type = msgdata[0];
 
-	if(counted <= k){
-		
-		//collect data (including node data)	
+	if(ep.type == P_ENERGYPACKET){
+		ep.numNodes = msgdata[1];
+	
+		int i;
+		for(i=0; i<ep.numNodes;i++){
+			//NOTE: this works based on the max number of nodes per cluster being 15, and using 16bit numbers for energy, locX, locY
+			//		might change.
+			int n_id = msgdata[3+i*2]; //get node id
+			energies[n_id] = msgdata[33+i*2];
+			locXs[n_id] = msgdata[63+i*2];
+			locYs[n_id] = msgdata[93+i*2];
+		}
+
+		counted += ep.numNodes;
+
+		//send an ack back
+		ea.type = P_ENERGYACK;
+		ea.tdma_slot = tdma_v;
+
+		tdma_v++;
+
+		memcpy(&tx_buffer, &ea, sizeof(EnergyAck));
+		radio_send(tx_buffer, sizeof(EnergyAck), src);
+	}
+	else if(ep.type == P_DATAPACKET){
 		dp.type = msgdata[0];
 		dp.src_id = msgdata[1];
 		dp.data = msgdata[3];
+		dp.finished = msgdata[5];
 
-		//TODO: reformat dp to include node data.
-		//TODO: save that data here
-		//acks will have to be included in this as well. 
-		printf("Rx %d bytes: [%04x][%04x]\n", len, dst, src);
+		// data is dummy, don't actually have to save it.
 
-		if(counted == k){
-			//simulated annealing
-			//send back packets 
+		if(counted >= NUMNODES){
+			//data from all has arrived, we can now perform simulated annealing.
+			//put results into FormationPacket fp
 		}
+
+		memcpy(&tx_buffer, &fp, sizeof(FormationPacket));
+		radio_send(tx_buffer, sizeof(FormationPacket), 0xff); //broadcast
 	}
-
-
-
-	//TODO: send an ack?
-
 }
 
 void application_radio_tx_done()

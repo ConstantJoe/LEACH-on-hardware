@@ -171,6 +171,7 @@ void application_timer_tick(timer *t)
 //
 void application_radio_rx_msg(unsigned short dst, unsigned short src, int len, unsigned char *msgdata)
 {
+	//TODO: the if checks should also include a type check
 	if(role == 'C' && state == S_WAIT_FOR_JOIN_REQUESTS)
 	{
 		jr.type = msgdata[0];
