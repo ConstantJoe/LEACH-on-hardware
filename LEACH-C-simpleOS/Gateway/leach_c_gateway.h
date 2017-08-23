@@ -13,6 +13,7 @@
 #define P_DATAPACKETWITHNODEINFO	5
 #define P_ENERGYPACKET				6
 #define P_ENERGYACK 				7
+#define P_FORMATIONPACKET			8
 
 #define NUMNODES 					100
 
